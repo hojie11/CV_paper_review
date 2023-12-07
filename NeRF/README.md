@@ -40,7 +40,9 @@ Pose값은 4x4행렬로 구성된 카메라 외부 파라미터(Extrinsic parame
 
 $$
 \begin{pmatrix} 
-        u\\v\\1 
+        u \\ 
+        v \\
+        1 
     \end{pmatrix} = 
 \begin{pmatrix} 
         f_x & 0   & c_x \\
@@ -53,7 +55,10 @@ $$
         r_{3,1} & r_{3,2} & r_{3,3} & t_3
     \end{pmatrix}
 \begin{pmatrix} 
-        X\\Y\\Z\\1 
+        X \\
+        Y \\
+        Z \\
+        1 
     \end{pmatrix}
 $$
 
