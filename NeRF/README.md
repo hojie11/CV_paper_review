@@ -1,4 +1,4 @@
-# NeRF
+# Neural Radiance Fields(NeRF)
 [REVIEW] Neural Radiance Fields for View Synthesis 
 
 [Project page](https://www.matthewtancik.com/nerf)
@@ -15,11 +15,11 @@ NeRF는 실제로 3D 오브젝트를 생성하는 것이 아니라 새로운 Vie
 
 이러한 방법은 기존 Point Cloud, Voxel, Mesh와 같이 Computing resource가 많이 필요하지 않음
 
-![NeRF Method](./image/NeRF%20method.png)
+![NeRF Method](./image/NeRF%20method.png)  
 출처: paper "Neural Radiance Fields for View Synthesis", fig. 1
 
 ## Overview : Neural Radiance Fields
-![Oerview:NeRF](./image/overview_nerf.png)
+![Oerview:NeRF](./image/overview_nerf.png)  
 출처: paper "Neural Radiance Fields for View Synthesis", fig. 2
 
 (a) NeRF는 3차원 좌표 Position($x, y, z$)와 카메라 파라미터($\theta, \phi$)가 결합된 5차원 데이터를 입력으로 사용함
@@ -31,3 +31,45 @@ NeRF는 실제로 3D 오브젝트를 생성하는 것이 아니라 새로운 Vie
 (d) 실제 이미지와 비교하여 생성된 이미지와의 차이를 최소화하며 학습을 진행함
 
 ## (a) 5D Input Position + Direction
+이미지를 NeRF 모델을 통해 학습하기 위해서는 카메라 파라미터에 대해 알아야 함
+
+Official NeRF github을 보면 입력 데이터는 이미지와 Pose값을 입력으로 함  
+Pose값은 4x4행렬로 구성된 카메라 외부 파라미터(Extrinsic parameter)이며, 이미지를 월드상의 3D 좌표로 변환할 때 사용되는 행렬임
+
+![Coordinates](./image/Camera.jpg)
+
+$$
+\begin{pmatrix} 
+        u\\v\\1 
+    \end{pmatrix} = 
+\begin{pmatrix} 
+        f_x & 0   & c_x \\
+        0   & f_y & c_y \\
+        0   & 0   & 1
+    \end{pmatrix}
+\begin{pmatrix} 
+        r_{1,1} & r_{1,2} & r_{1,3} & t_1 \\
+        r_{2,1} & r_{2,2} & r_{2,3} & t_2 \\
+        r_{3,1} & r_{3,2} & r_{3,3} & t_3
+    \end{pmatrix}
+\begin{pmatrix} 
+        X\\Y\\Z\\1 
+    \end{pmatrix}
+$$
+
+
+위의 식에서 **$r$** 과 **$t$** 로 구성된 행렬이 카메라 외부 파라미터 행렬이며, 각각 카메라의 회전 성분과 이동 성분을 나타냄  
+외부 파라미터 행렬 왼쪽에 **$f_x, f_y$** 와 **$c_x, c_y$** 로 구성된 행렬은 카메라 내부 파라미터 행렬이며, 각각 초점 거리와 광학 중심점을 나타냄
+
+이러한 카메라 파라미터를 변환하여 NeRF 모델의 핵심인 **Ray**를 생성하며, 이는 물체를 찍은 방향에서 물체를 향해 일직선으로 쏜 선을 의미함  
+Overview의 그림에서 (a)가 그 예시임  
+![Overview_a](./image/overview_a.png)
+
+**Ray**는 이미지의 크기만큼 생성되며 각 **Ray**의 방향을 나타내는 **viewing direction(d : $\theta, \phi$)** 와 발사한 **Ray**가 지나는 점들의 좌표값 **potition(x: $x, y, z$)** 를 MLP의 입력으로 사용함
+$$F_\theta : (x, d) = (c, \sigma)$$
+
+이 과정에서 **Fourier feature encoding**을 통해 low frequency 영역과 high frequency 영역 둘 다 표현할 수 있도록 하였음  
+이러한 인코딩의 결과는 [project page](https://bmild.github.io/fourfeat/), [paper](https://arxiv.org/abs/2006.10739)에서 증명하였음  
+![Fourier Encoding](./image/fourier_feature_encoding.png) 
+출처 : paper "Fourier Features Let Networks Learn
+High Frequency Functions in Low Dimensional Domains"
