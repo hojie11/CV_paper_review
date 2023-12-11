@@ -31,19 +31,19 @@ class Positional_Encoding(nn.Module):
         return torch.concat([fn(inputs) for fn in self.embed_fns], dim=-1)
     
 
-def get_positional_encoder(L):
+def get_positional_encoder(L, device):
     embedder_obj = Positional_Encoding(L)
-    def embed(x, eo=embedder_obj): return eo.embed(x)
+    def embed(x, eo=embedder_obj, device=device): return eo.embed(x).to(device)
     return embed, embedder_obj.out_dim
 
 
 if __name__ == '__main__':
-    pe, pe_dim = get_PE(10)
+    pe, pe_dim = get_positional_encoder(10)
     xyz = torch.randn((1, 256, 3))
     pe_xyz = pe(xyz)
     print(pe_xyz, pe_xyz.shape)
 
-    pe, pe_dim = get_PE(4)
+    pe, pe_dim = get_positional_encoder(4)
     dir = torch.randn((1, 256, 3))
     pe_dir = pe(dir)
     print(pe_dir, pe_dir.shape)
