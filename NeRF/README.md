@@ -68,7 +68,9 @@ $$
 
 이러한 카메라 파라미터를 변환하여 NeRF 모델의 핵심인 **Ray**를 생성하며, 이는 물체를 찍은 방향에서 물체를 향해 일직선으로 쏜 선을 의미함  
 Overview의 그림에서 (a)가 그 예시임  
-![Overview_a](./image/overview_a.png)
+<p align="center">
+    <img src="./image/overview_a.png">
+</p>
 
 **Ray**는 이미지의 크기만큼 생성되며 각 **Ray**의 방향을 나타내는 **viewing direction(d : $\theta, \phi$)** 와 발사한 **Ray**가 지나는 점들의 좌표값 **potition(x: $x, y, z$)** 를 MLP의 입력으로 사용함
 $$F_\theta : (x, d) = (c, \sigma)$$
