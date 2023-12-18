@@ -14,7 +14,7 @@ def get_rays(hwf, c2w):
                         -(j - H * .5) / focal,
                         -torch.ones_like(i)], dim=-1)
     rays_d = dirs @ c2w[:3, :3].T
-    rays_o = torch.broadcast_to(c2w[:3, -1], torch.shape(rays_d))
+    rays_o = torch.broadcast_to(c2w[:3, -1], rays_d.shape)
     return rays_o, rays_d
 
 
