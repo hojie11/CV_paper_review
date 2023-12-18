@@ -17,8 +17,9 @@ def main(args):
                                                        bkg_white=True,
                                                        downsample=args.downsample,
                                                        file_skip=args.file_skip)
-
     i_train, i_val, i_test = i_split
+    args.near = 2.
+    args.far = 6.
 
     embed_fn, input_ch = get_positional_encoder(args.embed_xyz, device)
     embed_fn_d, input_ch_d = get_positional_encoder(args.embed_dir, device)
@@ -56,7 +57,7 @@ if __name__ == '__main__':
                         help='embedding factor of positional encoding')
     parser.add_argument('--embed_dir', type=int, default=4,
                         help='embedding factor of positional encoding')
-    parser.add_argument('--use_dirs', type=bool, default=False,
+    parser.add_argument('--use_dirs', type=bool, default=True,
                         help='set view dependence')
 
     # training arguments
@@ -72,6 +73,15 @@ if __name__ == '__main__':
                         help='how many imgs dataloader skip to implement dataset')
     parser.add_argument("--lrate_decay", type=int, default=250,
                         help='exponential learning rate decay (in 1000s)')
+    parser.add_argument("--chunk", type=int, default=2048,
+                        help='number of rays processed in parallel, decrease if running out of memory')
+    parser.add_argument("--N_samples", type=int, default=64,
+                        help='number of coarse samples per ray')
+    parser.add_argument("--N_importance", type=int, default=128,
+                        help='number of additional fine samples per ray')
+
+    # rendering arguments
+
 
     # directory for training
     parser.add_argument('--file_path', type=str, default='../data/nerf_synthetic/lego',
