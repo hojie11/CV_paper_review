@@ -30,7 +30,7 @@ NeRF는 실제로 3D 오브젝트를 생성하는 것이 아니라 새로운 Vie
 
 (d) 실제 이미지와 비교하여 생성된 이미지와의 차이를 최소화하며 학습을 진행함
 
-## (a) 5D Input Position + Direction
+## (1) 5D Input Position + Direction
 이미지를 NeRF 모델을 통해 학습하기 위해서는 카메라 파라미터에 대해 알아야 함
 
 Official NeRF github을 보면 입력 데이터는 이미지와 Pose값을 입력으로 함  
@@ -80,3 +80,22 @@ $$F_\theta : (x, d) = (c, \sigma)$$
 ![Fourier Encoding](./image/fourier_feature_encoding.png) 
 출처 : paper "Fourier Features Let Networks Learn
 High Frequency Functions in Low Dimensional Domains"
+
+## (2) output + volume rendering
+제안한 방법에서는 **position**과 **viewing direction**을 입력으로 하여금 MLP로 이루어진 딥러닝 모델로부터 **RGB**와 **Density**값을 추출함</br>
+**RGB**는 이미지 전체에 해당하는 색상값이 아니라 **viewing direction**이 가르키는 해당 픽셀의 색상을 나타냄</br>
+**Density**는 밀도로써 사용되었으며, 해당 값이 클수록 해당 픽셀이 선명하다는 것을 뜻함
+
+
+논문에서 픽셀의 색상을 구하는 식은 아래와 같이 사용하였음</br>
+가장 가까운 점 $t_n$과 가장 먼 점 $t_f$ 사이에 있는 점들의 **RGB**, **Density**, 그리고 논문에서 도입한 투과도를 곱하여 픽셀의 색상을 정함</br>
+$T(t)$는 투과도를 나타내는 식으로 음수로 변환하여 임의의 점 t 앞에 있는 모든 점들의 Density값을 합하여 나타냄</br>
+즉, 값이 클수록 앞에 있는 점들에 가려 해당 점이 가려진다는 것을 뜻 함</br>
+$r(t)$는 Ray를 뜻하는 수식임
+$$
+C(r) = \int_{t_n}^{t_f} T(t) \sigma(r(t))c(r(t), d) dt \\
+T(t)=exp(-\int_{t_n}^{t}\sigma(r(s))ds) \\
+r(t) = o + td
+$$
+
+이러한 과정을 거쳐 volume rendering을 수헹하여 전체 이미지에 해당하는 픽셀의 색상을 결정함
