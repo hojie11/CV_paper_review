@@ -1,4 +1,4 @@
-# NeRF
+# NeRF (작성중)
 Repository for records of studying Neural Radiance Fields from scratch
 
 >1. Neural Radiance Field(ECCV 2020) -> [NeRF](https://www.matthewtancik.com/nerf)
