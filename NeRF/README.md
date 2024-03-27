@@ -92,6 +92,7 @@ High Frequency Functions in Low Dimensional Domains"
 $T(t)$는 투과도를 나타내는 식으로 음수로 변환하여 임의의 점 t 앞에 있는 모든 점들의 Density값을 합하여 나타냄</br>
 즉, 값이 클수록 앞에 있는 점들에 가려 해당 점이 가려진다는 것을 뜻 함</br>
 $r(t)$는 Ray를 뜻하는 수식임
+
 $$
 C(r) = \int_{t_n}^{t_f} T(t) \sigma(r(t))c(r(t), d) dt \\
 T(t)=exp(-\int_{t_n}^{t}\sigma(r(s))ds) \\
