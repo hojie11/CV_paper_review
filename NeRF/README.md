@@ -94,8 +94,8 @@ $T(t)$는 투과도를 나타내는 식으로 음수로 변환하여 임의의 �
 $r(t)$는 Ray를 뜻하는 수식임
 
 $$
-C(r) = \int_{t_n}^{t_f} T(t) \sigma(r(t))c(r(t), d) dt \\
-T(t)=exp(-\int_{t_n}^{t}\sigma(r(s))ds) \\
+C(r) = \int_{t_n}^{t_f} T(t) \sigma(r(t))c(r(t), d)dt,\\
+T(t)=exp(-\int_{t_n}^{t}\sigma(r(s))ds),\\
 r(t) = o + td
 $$
 
