@@ -1,4 +1,4 @@
-# [REVIEW] EG3D : Efficient Geometry-aware 3D Generative Adversarial Networks(작성중)
+# [REVIEW] EG3D : Efficient Geometry-aware 3D Generative Adversarial Networks
 > CVPR 2022 </br>
 > Eric R. Chan, Connor Z. Lin, Matthew A. Chan, Koki Nagano, Boxiao Pan, Shalini De Mello, Orazio Gallo, Leonidas J. Guibas, Jonathan Tremblay, Sameh Khamis, Tero Karras, Gordon Wetzstein </br>
 > Stanford Univ | NVIDIA
@@ -69,17 +69,117 @@ def project_onto_planes(planes, coordinates):
 $x, y, z$에 해당하는 3차원 좌표를 각 축이 이루는 평면 $F_{xy}, F_{xz}, F_{yz}$에 투영시킴으로써, 채널을 줄이는 효과를 볼 수 있다고 합니다. 위의 실험 결과에서 볼 수 있는 것 처럼, Implict한 방법을 기준으로 약 **7.8배가 빠르고, 메모리 효율도 우수**한 것을 볼 수 있습니다.
 
 ## 2. Super resolution
-Tri-plane Representation이 빠르고 효율적이다고 증명이 되었지만, NeRF와 3D GAN에서 가장 오래걸리는 부분은 Neural Rendering 부분입니다. 해당 논문에서는 작은 사이즈의 feature map을 Upsampling하는 방법으로 문제점을 해결하였습니다.
+`Tri-plane Representation`이 빠르고 효율적이다고 증명이 되었지만, NeRF와 3D GAN에서 가장 오래걸리는 부분은 Neural Rendering 부분입니다. 해당 논문에서는 작은 사이즈의 feature map을 Upsampling하는 방법으로 문제점을 해결하였습니다.
 
 ## 3. Dual Discriminator
-저자는 Rednering 결과와 최종 출력 이미지 사이의 View-inconsistent tendency를 정규화하여 consistency를 유지하기 위해 Dual Discriminator를 도입했다고 합니다. 여기서, Dual의 의미는 Discriminator를 2개 쓴 것이 아니라, $I^+_{RGB}$와 $I_{RGB}$ 2개의 입력을 사용한다는 뜻으로 해석됩니다. 이렇게 하면, 두 이미지 사이의 Consistency를 유지할 수 있다고 합니다.
+저자는 Rednering 결과와 최종 출력 이미지 사이의 View-inconsistent tendency를 정규화하여 **consistency를 유지**하기 위해 `Dual Discriminator`를 도입했다고 합니다. 여기서, Dual의 의미는 Discriminator를 2개 쓴 것이 아니라, $I^+_{RGB}$와 $I_{RGB}$ 2개의 입력을 사용한다는 뜻으로 해석됩니다. 이렇게 하면, 두 이미지 사이의 Consistency를 유지할 수 있다고 합니다.
 
 Dual Disciriminator는 최종 결과가 실제 이미지의 분포와 일치시키고, Neural Rendering의 결과가 축소된 실제 이미지의 분포와 일치시킵니다. 이 과정에서, view-inconsistency 때문에 발생하는 arifacts를 제거할 수 있다고 합니다. 해당 논문에서 제시한 결과를 보면 $I^+_{RGB}$와 $I_{RGB}$가 상당히 일치하는 것을 볼 수 있습니다.
 
+<p align=center>
+    <img src="./image/dual discriminator.jpg">
+</p>
+
+
 추가적으로, Discriminator를 통과하는 과정에서 카메라 파라미터를 제공함으로써, pose-aware 하도록 학습을 진행합니다. 이렇게 하면, Generator가 이미지를 생성하는 과정에서 좀 더 정확하게 3D prior를 학습한다고 합니다.
+
+아래의 코드를 통해 어떻게 구성되었는지 살펴보겠습니다.
+```python
+class DualDiscriminator(torch.nn.Module):
+    def __init__(self,
+        c_dim,                          # Conditioning label (C) dimensionality.
+        img_resolution,                 # Input resolution.
+        img_channels,                   # Number of input color channels.
+        architecture        = 'resnet', # Architecture: 'orig', 'skip', 'resnet'.
+        channel_base        = 32768,    # Overall multiplier for the number of channels.
+        channel_max         = 512,      # Maximum number of channels in any layer.
+        num_fp16_res        = 4,        # Use FP16 for the N highest resolutions.
+        conv_clamp          = 256,      # Clamp the output of convolution layers to +-X, None = disable clamping.
+        cmap_dim            = None,     # Dimensionality of mapped conditioning label, None = default.
+        disc_c_noise        = 0,        # Corrupt camera parameters with X std dev of noise before disc. pose conditioning.
+        block_kwargs        = {},       # Arguments for DiscriminatorBlock.
+        mapping_kwargs      = {},       # Arguments for MappingNetwork.
+        epilogue_kwargs     = {},       # Arguments for DiscriminatorEpilogue.
+    ):
+        super().__init__()
+        img_channels *= 2
+
+        self.c_dim = c_dim
+        self.img_resolution = img_resolution
+        self.img_resolution_log2 = int(np.log2(img_resolution))
+        self.img_channels = img_channels
+        self.block_resolutions = [2 ** i for i in range(self.img_resolution_log2, 2, -1)]
+        channels_dict = {res: min(channel_base // res, channel_max) for res in self.block_resolutions + [4]}
+        fp16_resolution = max(2 ** (self.img_resolution_log2 + 1 - num_fp16_res), 8)
+
+        if cmap_dim is None:
+            cmap_dim = channels_dict[4]
+        if c_dim == 0:
+            cmap_dim = 0
+
+        common_kwargs = dict(img_channels=img_channels, architecture=architecture, conv_clamp=conv_clamp)
+        cur_layer_idx = 0
+        for res in self.block_resolutions:
+            in_channels = channels_dict[res] if res < img_resolution else 0
+            tmp_channels = channels_dict[res]
+            out_channels = channels_dict[res // 2]
+            use_fp16 = (res >= fp16_resolution)
+            block = DiscriminatorBlock(in_channels, tmp_channels, out_channels, resolution=res,
+                first_layer_idx=cur_layer_idx, use_fp16=use_fp16, **block_kwargs, **common_kwargs)
+            setattr(self, f'b{res}', block)
+            cur_layer_idx += block.num_layers
+        if c_dim > 0:
+            self.mapping = MappingNetwork(z_dim=0, c_dim=c_dim, w_dim=cmap_dim, num_ws=None, w_avg_beta=None, **mapping_kwargs)
+        self.b4 = DiscriminatorEpilogue(channels_dict[4], cmap_dim=cmap_dim, resolution=4, **epilogue_kwargs, **common_kwargs)
+        self.register_buffer('resample_filter', upfirdn2d.setup_filter([1,3,3,1]))
+        self.disc_c_noise = disc_c_noise
+
+    def forward(self, img, c, update_emas=False, **block_kwargs):
+        image_raw = filtered_resizing(img['image_raw'], size=img['image'].shape[-1], f=self.resample_filter)
+        img = torch.cat([img['image'], image_raw], 1)
+
+        _ = update_emas # unused
+        x = None
+        for res in self.block_resolutions:
+            block = getattr(self, f'b{res}')
+            x, img = block(x, img, **block_kwargs)
+
+        cmap = None
+        if self.c_dim > 0:
+            if self.disc_c_noise > 0: c += torch.randn_like(c) * c.std(0) * self.disc_c_noise
+            cmap = self.mapping(None, c)
+        x = self.b4(x, img, cmap)
+        return x
+
+    def extra_repr(self):
+        return f'c_dim={self.c_dim:d}, img_resolution={self.img_resolution:d}, img_channels={self.img_channels:d}'
+```
+
+전체 구조는 Stylegan2의 Discriminator의 구조와 비슷하다고 볼 수 있습니다. 초기에 `self.block_resolutions`을 계산하여 for문을 통해 Discriminator를 구성하였습니다. 해당 논문에서 말하는 Pose Conditioning은 아래의 코드에서 이루어지는 것을 볼 수 있습니다.
+```python
+if c_dim > 0:
+    self.mapping = MappingNetwork(z_dim=0, c_dim=c_dim, w_dim=cmap_dim, num_ws=None, w_avg_beta=None, **mapping_kwargs)
+self.b4 = DiscriminatorEpilogue(channels_dict[4], cmap_dim=cmap_dim, resolution=4, **epilogue_kwargs, **common_kwargs)
+```
+
+학습 과정에서 카메라 파라미터를 전달받아 Mapping Network로 Embedding 시켜 사용하는 것을 볼 수 있었습니다.
 
 ## 학습 과정 및 결과
 학습 에서는 Non Saturating GAN Loss와 R1 Regularization을 사용하여 모델을 학습하였습니다. 학습 속도를 향상시키기 위해서 two-stage 전략을 사용했다고 합니다. 처음에 작은 해상도(${64}^2$)의 입력으로 모델을 학습시키고, 본래 크기(${128}^2$)로 fine tuning을 진행하였습니다. 
+
+<p align=center>
+    <img src="./image/result1.jpg">
+</p>
+
+View에 따른 Consistency를 잘 학습하여 고해상도의 이미지를 생성한 것을 볼 수 있었습니다. 개인적으로 놀라운 점은 Figure 7에서 볼 수 있는 것 처럼 3D shape이 매우 정교하다는 점이었습니다. 
+
+<p align=center>
+    <img src="./image/result2.jpg">
+</p>
+
+성능지표에서도 FFHQ와 Cats 데이터셋에서 SOTA의 결과를 낸다고 합니다. 우선, FID 지표에서 볼 수 있듯이 생성 이미지의 품질이 굉장히 고화질인 것을 알 수 있었습니다. 전체 모델을 Pose-aware하게 학습함으로써, Pose의 정확도가 매우 높은 것을 볼 수 있습니다. 그리고, 3차원 정보를 2차원 평면에 투영시킨 Tri-plane을 사용하여 3D shape의 정확도 역시 기존보다 우수한 것을 볼 수 있습니다.
+
+다만, 저자도 논문에 표현하였듯이 치아와 같은 부분이 정교하지 못하다는 단점이 있고, Pose에 대한 Knowledge가 필요하다는 단점이 있었습니다.
 
 ## Comment
 오늘은 EG3D의 논문에 대해서 리뷰를 해보았습니다. 논문을 읽으면서 3D GAN의 전체 흐름과 원리에 대해 복습하는 기회가 되었습니다. 이 논문이 발표된 이후로 Tri-plane을 사용한 다양한 논문들이 발표되고 있어 한 번쯤 자세하게 다루고 싶었는데, 드디어 하게 되었습니다...ㅎ
