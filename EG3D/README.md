@@ -15,7 +15,12 @@
     <img src="./image/framework.jpg">
 </p>
 
-위 사진은 `EG3D`의 전체 구조입니다. `Mapping Network`에 **Latent vector와 카메라 파라미터**를 바탕으로 **새로운 Feature vector**를 출력합니다. 카메라 파라미터를 사용한 이유는 **카메라 포즈와 다른 속성에 대한 Decoupling을 유도**하기 위함입니다. 이렇게 하면, `Pose Conditioning`을 통해 데이터셋에 포함된 `Pose-dependent bias`를 표현할 수 있다고 합니다. </br>
+위 사진은 `EG3D`의 전체 구조입니다. 학습 흐름을 간략하게 설명해보자면, 로부터 `Latent vector`를 전달받아 `Stylegan2 Generator`를 통해 **Feature Map**을 생성하고 `Tri-plane`으로 변형합니다. 그 후, `Neural Renderer` 모듈을 통해 Feature Image($I_F$)를 생성합니다. $I_F$는 Super resolution 모듈을 통과하여 $I^+_{RGB}$를 생성하고, $I_F$의 첫 3채널 $I_{RGB}$와 Concat하여 `Dual Discriminator`를 통해 결과를 판별합니다. (막상 쓰고보니 간략하지 않은 것 같네요..ㅎ)</br>
+
+이제 위의 과정을 하나씩 짚어가며 설명해보곘습니다.
+
+## 1. Mapping Network & Tri-plane Representation
+`Mapping Network`에 Latent vector와 카메라 파라미터를 바탕으로 **새로운 Feature vector**를 출력합니다. 카메라 파라미터를 사용한 이유는 **카메라 포즈와 다른 속성에 대한 Decoupling을 유도**하기 위함입니다. 이렇게 하면, `Pose Conditioning`을 통해 데이터셋에 포함된 `Pose-dependent bias`를 표현할 수 있다고 합니다. </br>
 이후, 이미지 생성을 위한 `StyleGAN2의 Generator`를 이용해서 **96채널의 Feature**를 추출하고 32채널씩 Reshaep하여 제안한 방법인 `Tri-plane`을 생성하였습니다. `Tri-plane`이 `EG3D`에서 제안한 Hybrid한 방법의 **Key point**입니다. 코드를 보면 더 쉽게 이해하실 수 있습니다.
 
 ```python
@@ -62,3 +67,21 @@ def project_onto_planes(planes, coordinates):
 </p>
 
 $x, y, z$에 해당하는 3차원 좌표를 각 축이 이루는 평면 $F_{xy}, F_{xz}, F_{yz}$에 투영시킴으로써, 채널을 줄이는 효과를 볼 수 있다고 합니다. 위의 실험 결과에서 볼 수 있는 것 처럼, Implict한 방법을 기준으로 약 **7.8배가 빠르고, 메모리 효율도 우수**한 것을 볼 수 있습니다.
+
+## 2. Super resolution
+Tri-plane Representation이 빠르고 효율적이다고 증명이 되었지만, NeRF와 3D GAN에서 가장 오래걸리는 부분은 Neural Rendering 부분입니다. 해당 논문에서는 작은 사이즈의 feature map을 Upsampling하는 방법으로 문제점을 해결하였습니다.
+
+## 3. Dual Discriminator
+저자는 Rednering 결과와 최종 출력 이미지 사이의 View-inconsistent tendency를 정규화하여 consistency를 유지하기 위해 Dual Discriminator를 도입했다고 합니다. 여기서, Dual의 의미는 Discriminator를 2개 쓴 것이 아니라, $I^+_{RGB}$와 $I_{RGB}$ 2개의 입력을 사용한다는 뜻으로 해석됩니다. 이렇게 하면, 두 이미지 사이의 Consistency를 유지할 수 있다고 합니다.
+
+Dual Disciriminator는 최종 결과가 실제 이미지의 분포와 일치시키고, Neural Rendering의 결과가 축소된 실제 이미지의 분포와 일치시킵니다. 이 과정에서, view-inconsistency 때문에 발생하는 arifacts를 제거할 수 있다고 합니다. 해당 논문에서 제시한 결과를 보면 $I^+_{RGB}$와 $I_{RGB}$가 상당히 일치하는 것을 볼 수 있습니다.
+
+추가적으로, Discriminator를 통과하는 과정에서 카메라 파라미터를 제공함으로써, pose-aware 하도록 학습을 진행합니다. 이렇게 하면, Generator가 이미지를 생성하는 과정에서 좀 더 정확하게 3D prior를 학습한다고 합니다.
+
+## 학습 과정 및 결과
+학습 에서는 Non Saturating GAN Loss와 R1 Regularization을 사용하여 모델을 학습하였습니다. 학습 속도를 향상시키기 위해서 two-stage 전략을 사용했다고 합니다. 처음에 작은 해상도(${64}^2$)의 입력으로 모델을 학습시키고, 본래 크기(${128}^2$)로 fine tuning을 진행하였습니다. 
+
+## Comment
+오늘은 EG3D의 논문에 대해서 리뷰를 해보았습니다. 논문을 읽으면서 3D GAN의 전체 흐름과 원리에 대해 복습하는 기회가 되었습니다. 이 논문이 발표된 이후로 Tri-plane을 사용한 다양한 논문들이 발표되고 있어 한 번쯤 자세하게 다루고 싶었는데, 드디어 하게 되었습니다...ㅎ
+
+대학원을 다니면서 다양한 논문을 읽어보고 혼자 이해하고 넘어갔었는데, 이렇게 리뷰를 작성하는 것은 익숙하지가 않아 설명이나 글이 이상한 것 같습니다. 앞으로 더욱 다양한 논문 리뷰를 통해 글을 다듬어 보겠습니다!
