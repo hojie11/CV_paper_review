@@ -1,3 +1,6 @@
 # igonore all files in the __pycahce__ directory
 NeRF/__pycache__/
 NeRF/scripts/__pycache__/
+
+# ignore miscellaneous
+.DS_Store
