@@ -62,7 +62,11 @@ Matrix `R`은 point마다 크기가 4이고 0으로 초기화된 벡터를 만�
 
 $$ {\sum}' = JW \sum W^{T}J^{T}$$
 
+$J$는 projective transfomation의 선형 변환을 위한 Jacobian 행렬로 카메라 좌표계를 이미지 좌표계로 변환시켜주는 역할을 합니다.
 
+$W$는 카메라 파라미터를 나타내는 행렬로, 월드 좌표계를 카메라 좌표계로 변환시켜주는 역할을 합니다.
+
+$\sum$은 위에서 구한 월드 좌표계에서의 Covariance를 나타냅니다.
 
 `C`는 3D Gaussian의 색상값을 나타내는데, 해당 논문에서는 Spherical Harmonics(SH)라고 하는 함수로 설계했습니다. SH는 Computer Graphics분야에서 3D 물체가 여러 광원에 영향을 받아 변하는 색상을 실시간으로 계산하기 위해 사용한다고 합니다. 구면 좌표계에서 $\theta$와 $\phi$를 입력 받아 해당 위치의 구면값을 반환하는 함수입니다. 구면좌표계를 라플라스 방정식을 계산하면 아래와 같은 SH 함수($Y_{l}^{m}(\theta, \phi)$)와 확률밀도함수($P_{l}^{\vert m \vert} \cos\theta$)를 얻을 수 있습니다. 수식을 유도하는 과정은 [link](https://elementary-physics.tistory.com/126)에 자세하게 나와있습니다.
 
