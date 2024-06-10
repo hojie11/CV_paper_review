@@ -40,7 +40,7 @@ $$ \sum = RSS^{T}R^{T} $$
 
 논문에서는 공분산의 수식을 $\sum$ 기호로 나타냈습니다. Scaling factor로 구성된 vector $S$와 Rotation에 관련된 quarternion을 변환한 $R$로 구성하였고, 독립적인 Opimization을 위해 각 factor들을 따로 저장했다고 합니다.
 
-$S$는 아래와 같은 코드로 값을 할당받게됩니다.
+`S`는 아래와 같은 코드로 값을 할당받게됩니다.
 
 ```python
 dist2 = torch.clamp_min(distCUDA2(torch.from_numpy(np.asarray(pcd.points)).float().cuda()), 0.0000001)
@@ -54,9 +54,30 @@ rots = torch.zeros((fused_point_cloud.shape[0], 4), device="cuda")
 rots[:, 0] = 1
 ```
 
-matrix `R`은 point마다 크기가 4이고 0으로 초기화된 벡터를 만들어 첫번째 값에만 1로 할당하여 초기값을 세팅하였습니다.
+Matrix `R`은 point마다 크기가 4이고 0으로 초기화된 벡터를 만들어 첫번째 값에만 1로 할당하여 초기값을 세팅하였습니다.
 
 이렇게 공분산 수식을 구성한 이유는 3D Gaussian을 Rendering 할 수 있도록 2D로 변환하는 과정에서 image space에 맞추기 위해서 입니다.(image space가 좌측 상단 (0,0)에서 우측 하단 방향으로 좌표값이 증가하게 되는데, 이를 위해 공분산 행렬이 positive semi definite를 만족하도록(?) 설계했다고 봅니다.)
 
-`C`는 3D Gaussian의 색상값을 나타내는데, 해당 논문에서는 Spherical Harmonics(SH)라고 하는 함수로 설계했습니다. SH는 Computer Graphics분야에서 3D 물체가 여러 광원에 영향을 받아 변하는 색상을 실시간으로 계산하기 위해 사용한다고 합니다. 구면 좌표계에서 $\theta$와 $\phi$를 입력 받아 해당 위치의 구면값을 반환하는 함수입니다. 구면좌표계를 라플라스 방정식을 계산하면 아래와 같은 SH 함수를 얻을 수 있습니다. 수식을 유도하는 과정은 [link](https://elementary-physics.tistory.com/126)에 자세하게 나와있습니다.
+3D Gaussian을 2D로 Projection하는 수식은 아래와 같습니다.
 
+$$ {\sum}' = JW \sum W^{T}J^{T}$$
+
+
+
+`C`는 3D Gaussian의 색상값을 나타내는데, 해당 논문에서는 Spherical Harmonics(SH)라고 하는 함수로 설계했습니다. SH는 Computer Graphics분야에서 3D 물체가 여러 광원에 영향을 받아 변하는 색상을 실시간으로 계산하기 위해 사용한다고 합니다. 구면 좌표계에서 $\theta$와 $\phi$를 입력 받아 해당 위치의 구면값을 반환하는 함수입니다. 구면좌표계를 라플라스 방정식을 계산하면 아래와 같은 SH 함수($Y_{l}^{m}(\theta, \phi)$)와 확률밀도함수($P_{l}^{\vert m \vert} \cos\theta$)를 얻을 수 있습니다. 수식을 유도하는 과정은 [link](https://elementary-physics.tistory.com/126)에 자세하게 나와있습니다.
+
+$$ Y_{l}^{m}(\theta, \phi) = \sqrt{{(2l+1)(l- \vert m \vert)!}\over{4 \pi (l+ \vert m \vert)!}}P_{l}^{\vert m \vert} \cos\theta e^{im\phi} $$
+
+$$ P_{l}^{\vert m \vert} \cos\theta = (-1)^{m} \frac {(l+ \vert m \vert)!}{(l- \vert m \vert)!}P_{l}^{-\vert m \vert}\cos\theta $$
+
+위의 식에서 $l$은 방위 양자수를 나타냅니다. 오비탈의 모양을 결정하는 양자수로 0 ~ n-1 의 값을 갖습니다. $m$은 자기 양자수를 나타내는데, 음수, 0, 양수 등의 값을 갖고 오비탈의 공간 방향을 나타냅니다. 
+
+<p align=center>
+    <img src="./image/spherical_harmonic.png">
+</p>
+
+위의 수식의 $\theta$와 $\phi$를 x, y축에 대한 평면으로 표현하여 색을 구성하는 map을 만들어 사용합니다. [Wikipedia](https://en.wikipedia.org/wiki/Table_of_spherical_harmonics)에 따르면 SH 함수의 크기는 Saturation(선명도)을 나타내고 위상은 Hue(밝기)를 나타낸다고 합니다.
+
+[논문](https://3dvar.com/Green2003Spherical.pdf)에 따르면, 최종적으로 `C`는 입력된 $\theta, \phi$에 따라 계산된 각 SH 함수의 결과를 weighted sum하여 결정하게 됩니다. 이때, $l$의 최대값은 고정되어 있기 때문에, 정해진 Y 함수 내에서 가중치 값을 조절하여 색상을 결정합니다.
+
+`A`는 3D Gaussian의 Opacity를 나타내는 값입니다. 초기값은 inverse sigmoid를 사용하여 음수값으로 할당하였는데 특별한 이유는 없는 것 같습니다.
