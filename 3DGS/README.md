@@ -26,13 +26,13 @@ Gradient Flow는 학습 과정에서 역전파로 계산된 Loss에 의해 업�
 지금부터는 각 단계에 대해 자세하게 알아보도록 하겠습니다.
 
 ## 1. Initialization
-Initialization Block에서는 3D Gaussian을 구성하고 학습에 사용되는 M, S, C, A 파라미터의 초기값을 설정합니다.
+Initialization block에서는 3D Gaussian을 구성하고 학습에 사용되는 M, S, C, A 파라미터의 초기값을 설정합니다.
 
 <p align=center>
     <img src="./image/initialization.png">
 </p>
 
-`M`은 COLMAP과 같은 SfM 알고리즘을 통해 획득한 3D Point Cloud를 초기값으로 설정합니다. Gaussian은 **평균과 분산**으로 구성되게 되는데, 해당 논문에서는 3D Gaussian을 사용하기 때문에 분산이 아닌 공분산으로 구성됩니다. Point Cloud는 3D Gaussian의 평균값으로 사용되며, Point Cloud의 수와 동일한 Gaussian들이 생성됩니다.
+`M`은 COLMAP과 같은 SfM 알고리즘을 통해 획득한 3D Point Cloud를 초기값으로 설정합니다. Gaussian은 **평균과 분산**으로 구성되게 되는데, 해당 논문에서는 3D Gaussian을 사용하기 때문에 분산이 아닌 공분산으로 구성됩니다. Point Cloud는 3D Gaussian의 초기 평균값으로 사용되며, Point Cloud의 수와 동일한 Gaussian들이 생성됩니다.
 
 `S`는 3D Gaussian의 공분산을 나타냅니다. 3차원에 해당하기 때문에 3x3 크기의 행렬입니다. 
 
@@ -85,3 +85,19 @@ $$ P_{l}^{\vert m \vert} \cos\theta = (-1)^{m} \frac {(l+ \vert m \vert)!}{(l- \
 [논문](https://3dvar.com/Green2003Spherical.pdf)에 따르면, 최종적으로 `C`는 입력된 $\theta, \phi$에 따라 계산된 각 SH 함수의 결과를 weighted sum하여 결정하게 됩니다. 이때, $l$의 최대값은 고정되어 있기 때문에, 정해진 Y 함수 내에서 가중치 값을 조절하여 색상을 결정합니다.
 
 `A`는 3D Gaussian의 Opacity를 나타내는 값입니다. 초기값은 inverse sigmoid를 사용하여 음수값으로 할당하였는데 특별한 이유는 없는 것 같습니다.
+
+## 2. Projection + 3. Rasterize
+다음 과정에서는 Projection block과 Differentiable Tile Rasterizer block을 거쳐 이미지를 생성하고 실제 이미지와 비교하여 Loss를 계산하며 학습을 진행하게 됩니다.
+
+<p align=center>
+    <img src="./image/rasterize.png">
+</p>
+
+먼저, `SampleTrainingView` 함수를 통해 카메라 파라미터 `V`와 Ground Truth 이미지 $\hat{I}$ 를 읽어옵니다. 읽어온 카메라 파라미터 `V`는 위에서 초기화한 `M`, `S`, `C`, `A`와 함께 `Rasterize` 함수의 입력으로 사용되어 이미지 `I`를 생성합니다.
+
+<p align=center>
+    <img src="./image/rasterize2.png">
+</p>
+
+실제 함수에서는 이미지 크기를 나타내는 `w`와 `h` 변수들도 입력으로 받게 되어있는데, 초기값이 이미 설정되어 있어 따로 입력값을 전달하지는 않습니다.
+
