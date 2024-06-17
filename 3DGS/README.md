@@ -104,7 +104,7 @@ $$ P_{l}^{\vert m \vert} \cos\theta = (-1)^{m} \frac {(l+ \vert m \vert)!}{(l- \
 
 해당 논문에서 제공한 알고리즘의 순서를 따라가며 이미지 생성 과정을 설명해보겠습니다.
 
-### CullGaussian
+### Cull Gaussian
 전체 3D Gaussian `p` 중에 입력 카메라 파라미터 `V`에서 관측할 수 없는 3D Guassian을 걸러내는 filter 역할을 하는 함수입니다. 
 
 <p align=center>
@@ -113,7 +113,7 @@ $$ P_{l}^{\vert m \vert} \cos\theta = (-1)^{m} \frac {(l+ \vert m \vert)!}{(l- \
 
 주어진 3차원 카메라 정보로 볼 수 있는 평면의 영역인 절두체(Viewing Frustum) 밖에 있는 오브젝트는 렌더링 과정에서 제거(Culling)하게 됩니다. 논문에서는 교챠 영역에서 99% Confidence를 갖는 3D Gaussian만 유지한다고 합니다. 추가적으로, 2D Covariance 연산이 불안정하기 때문에 near plane에 너무 가깝거나 Frustum 밖과 같이 extream한 영역의 Gaussian을 걸러내기 위한 `gurad band`를 사용한다고 합니다.(Frustum Culling에 관한 자세한 내용은 [링크](https://m.blog.naver.com/canny708/221547085908)를 참고하였습니다.)
 
-### ScreenspaceGaussians
+### Screen space Gaussians
 이 함수는 3D Gaussian을 2D Gaussia으로 변환하여 Image plane에 projection시키는 함수입니다. Scaling Matrix와 Rotation Matrix를 이용하여 3D Covariance를 계산합니다.
 
 $$ \sum = RSS^{T}R^{T} $$
@@ -125,3 +125,18 @@ $$ {\sum}' = JW \sum W^{T}J^{T}$$
 관련 수식은 위에서 설명을 해서 짧게 넘어가겠습니다.
 
 ### Create Tiles
+`w, h` 크기의 이미지를 16x16 tile로 쪼개는 함수입니다. 논문에서 제안하는 tile based rasterization을 수행하기 위한 단계로 이해했습니다.
+
+### Duplicate with Keys
+각 2D Gaussian을 겹쳐는 tile 수에 따라 인스턴스화 시킵니다. 각 인스턴스에 view space depth와 tile ID를 결합한 Key를 할당하여 Dictionary 형태로 저장됩니다. Key 정보는 64 bit 크기로 구성되며, 32비트씩 `[ tile ID | depth ]`의 형태로 저장됩니다. 이 과정에서 갹 Gaussian 마다 N개의 인스턴스들이 생기지만, CUDA를 이용한 병렬처리와 다음 단계에서 진행할 정렬 흐름이 더 간단해져서 빠르게 처리가 가능하다고 합니다.
+
+### Sort by Keys
+각 인스턴스에 할당한 Key를 이용하여 Radix Sort를 진행합니다. Radix Sort(기수 정렬)은 낮은 자리수부터 비교하여 정렬하는 알고리즘을 말합니다. 해당 과정에서는 GPU를 이용해 병렬적으로 모든 splat들을 depth에 따라 정렬합니다. 이 과정에서 픽셀마다 point들의 순서는 정해져 있지 않고, blending 과정에서도 초기 정렬을 기반으로 수행된다고 합니다. 저자는 본인들의 $\alpha$-blending 과정에서 일부 구성이 approximate 할 수 있지만, splat이 픽셀 크기에 해당하기 때문에 무시해도 될 정도라고 합니다. 결과적으로 이 방법이 artifacts 줄이고 학습과 렌더링 퍼포먼스에 큰 영향을 끼쳤다고 합니다.
+
+### Identify Tile Range
+같은 tile ID에서 시작과 끝 Gaussian을 식별하여 리스트를 생성하여 효율적으로 관리하기 위한 함수입니다.
+
+### Get Tile Range
+모든 tile에 대한 range `r`을 읽어옵니다.
+
+### Blend in Order
