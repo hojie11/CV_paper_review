@@ -11,7 +11,7 @@
 
 ## Overview
 <p align=center>
-    <img src="./image/overview.png">
+    <img src="./image/overview.png" width=60% height=60%>
 </p>
 
 해당 논문의 전체 흐름은 위의 그림과 같은 순서로 구성되어 있습니다.
@@ -29,7 +29,7 @@ Gradient Flow는 학습 과정에서 역전파로 계산된 Loss에 의해 업�
 Initialization block에서는 3D Gaussian을 구성하고 학습에 사용되는 M, S, C, A 파라미터의 초기값을 설정합니다.
 
 <p align=center>
-    <img src="./image/initialization.png">
+    <img src="./image/initialization.png" width=60% height=60%>
 </p>
 
 `M`은 COLMAP과 같은 SfM 알고리즘을 통해 획득한 3D Point Cloud를 초기값으로 설정합니다. Gaussian은 **평균과 분산**으로 구성되게 되는데, 해당 논문에서는 3D Gaussian을 사용하기 때문에 분산이 아닌 공분산으로 구성됩니다. Point Cloud는 3D Gaussian의 초기 평균값으로 사용되며, Point Cloud의 수와 동일한 Gaussian들이 생성됩니다.
@@ -77,7 +77,7 @@ $$ P_{l}^{\vert m \vert} \cos\theta = (-1)^{m} \frac {(l+ \vert m \vert)!}{(l- \
 위의 식에서 $l$은 방위 양자수를 나타냅니다. 오비탈의 모양을 결정하는 양자수로 0 ~ n-1 의 값을 갖습니다. $m$은 자기 양자수를 나타내는데, 음수, 0, 양수 등의 값을 갖고 오비탈의 공간 방향을 나타냅니다. 
 
 <p align=center>
-    <img src="./image/spherical_harmonic.png">
+    <img src="./image/spherical_harmonic.png" width=60% height=60%>
 </p>
 
 위의 수식의 $\theta$와 $\phi$를 x, y축에 대한 평면으로 표현하여 색을 구성하는 map을 만들어 사용합니다. [Wikipedia](https://en.wikipedia.org/wiki/Table_of_spherical_harmonics)에 따르면 SH 함수의 크기는 Saturation(선명도)을 나타내고 위상은 Hue(밝기)를 나타낸다고 합니다.
@@ -90,14 +90,14 @@ $$ P_{l}^{\vert m \vert} \cos\theta = (-1)^{m} \frac {(l+ \vert m \vert)!}{(l- \
 다음 과정에서는 Projection block과 Differentiable Tile Rasterizer block을 거쳐 이미지를 생성하고 실제 이미지와 비교하여 Loss를 계산하며 학습을 진행하게 됩니다.
 
 <p align=center>
-    <img src="./image/rasterize.png">
+    <img src="./image/rasterize.png" width=60% height=60%>
 </p>
 
 
 먼저, `SampleTrainingView` 함수를 통해 카메라 파라미터 `V`와 Ground Truth 이미지 $\hat{I}$ 를 읽어옵니다. 읽어온 카메라 파라미터 `V`는 위에서 초기화한 `M`, `S`, `C`, `A`와 함께 `Rasterize` 함수의 입력으로 사용되어 이미지 `I`를 생성합니다.
 
 <p align=center>
-    <img src="./image/rasterize2.png">
+    <img src="./image/rasterize2.png" width=60% height=60%>
 </p>
 
 실제 함수에서는 이미지 크기를 나타내는 `w`와 `h` 변수들도 입력으로 받게 되어있는데, 초기값이 이미 설정되어 있어 따로 입력값을 전달하지는 않습니다.
@@ -108,7 +108,7 @@ $$ P_{l}^{\vert m \vert} \cos\theta = (-1)^{m} \frac {(l+ \vert m \vert)!}{(l- \
 전체 3D Gaussian `p` 중에 입력 카메라 파라미터 `V`에서 관측할 수 없는 3D Guassian을 걸러내는 filter 역할을 하는 함수입니다. 
 
 <p align=center>
-    <img src="./image/view_frustum.png">
+    <img src="./image/view_frustum.png" width=60% height=60%>
 </p>
 
 주어진 3차원 카메라 정보로 볼 수 있는 평면의 영역인 절두체(Viewing Frustum) 밖에 있는 오브젝트는 렌더링 과정에서 제거(Culling)하게 됩니다. 논문에서는 교챠 영역에서 99% Confidence를 갖는 3D Gaussian만 유지한다고 합니다. 추가적으로, 2D Covariance 연산이 불안정하기 때문에 near plane에 너무 가깝거나 Frustum 밖과 같이 extream한 영역의 Gaussian을 걸러내기 위한 `gurad band`를 사용한다고 합니다.(Frustum Culling에 관한 자세한 내용은 [링크](https://m.blog.naver.com/canny708/221547085908)를 참고하였습니다.)
