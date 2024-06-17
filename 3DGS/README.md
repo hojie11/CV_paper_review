@@ -93,6 +93,7 @@ $$ P_{l}^{\vert m \vert} \cos\theta = (-1)^{m} \frac {(l+ \vert m \vert)!}{(l- \
     <img src="./image/rasterize.png">
 </p>
 
+
 먼저, `SampleTrainingView` 함수를 통해 카메라 파라미터 `V`와 Ground Truth 이미지 $\hat{I}$ 를 읽어옵니다. 읽어온 카메라 파라미터 `V`는 위에서 초기화한 `M`, `S`, `C`, `A`와 함께 `Rasterize` 함수의 입력으로 사용되어 이미지 `I`를 생성합니다.
 
 <p align=center>
@@ -101,3 +102,26 @@ $$ P_{l}^{\vert m \vert} \cos\theta = (-1)^{m} \frac {(l+ \vert m \vert)!}{(l- \
 
 실제 함수에서는 이미지 크기를 나타내는 `w`와 `h` 변수들도 입력으로 받게 되어있는데, 초기값이 이미 설정되어 있어 따로 입력값을 전달하지는 않습니다.
 
+해당 논문에서 제공한 알고리즘의 순서를 따라가며 이미지 생성 과정을 설명해보겠습니다.
+
+### CullGaussian
+전체 3D Gaussian `p` 중에 입력 카메라 파라미터 `V`에서 관측할 수 없는 3D Guassian을 걸러내는 filter 역할을 하는 함수입니다. 
+
+<p align=center>
+    <img src="./image/view_frustum.png">
+</p>
+
+주어진 3차원 카메라 정보로 볼 수 있는 평면의 영역인 절두체(Viewing Frustum) 밖에 있는 오브젝트는 렌더링 과정에서 제거(Culling)하게 됩니다. 논문에서는 교챠 영역에서 99% Confidence를 갖는 3D Gaussian만 유지한다고 합니다. 추가적으로, 2D Covariance 연산이 불안정하기 때문에 near plane에 너무 가깝거나 Frustum 밖과 같이 extream한 영역의 Gaussian을 걸러내기 위한 `gurad band`를 사용한다고 합니다.(Frustum Culling에 관한 자세한 내용은 [링크](https://m.blog.naver.com/canny708/221547085908)를 참고하였습니다.)
+
+### ScreenspaceGaussians
+이 함수는 3D Gaussian을 2D Gaussia으로 변환하여 Image plane에 projection시키는 함수입니다. Scaling Matrix와 Rotation Matrix를 이용하여 3D Covariance를 계산합니다.
+
+$$ \sum = RSS^{T}R^{T} $$
+
+이후, Projective Matrix `J`와 Viewing transformatino `W`와 계산하여 2D로 변환합니다.
+
+$$ {\sum}' = JW \sum W^{T}J^{T}$$
+
+관련 수식은 위에서 설명을 해서 짧게 넘어가겠습니다.
+
+### Create Tiles
