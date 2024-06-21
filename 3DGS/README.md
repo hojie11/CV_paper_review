@@ -23,7 +23,12 @@
 4. Adaptive Density Control : 역전파 과정에서 Gradient를 통해 Gaussian의 형태를 업데이트 하는 구간입니다. 해당 논문에서는 Under Reconstruction과 Over Reconstruction의 경우에 대해 Optimization 과정을 거쳐 수행한다고 합니다.
 
 Gradient Flow는 학습 과정에서 역전파로 계산된 Loss에 의해 업데이트하는 과정입니다. </br>
-지금부터는 각 단계에 대해 자세하게 알아보도록 하겠습니다.
+
+<p align=center>
+    <img src="./image/psuedo_code.png" width=60% height=60%>
+</p>
+
+`3DGS`의 psuedo code는 위와 같은 흐름을 따라 진행됩니다. 지금부터는 각 단계에 대해 자세하게 알아보도록 하겠습니다.
 
 ## 1. Initialization
 Initialization block에서는 3D Gaussian을 구성하고 학습에 사용되는 M, S, C, A 파라미터의 초기값을 설정합니다.
@@ -93,8 +98,10 @@ $$ P_{l}^{\vert m \vert} \cos\theta = (-1)^{m} \frac {(l+ \vert m \vert)!}{(l- \
     <img src="./image/rasterize.png" width=60% height=60%>
 </p>
 
+### Sample Training View
+카메라 파라미터 `V`와 Ground Truth(GT) 이미지 $\hat{I}$ 를 읽어옵니다. 읽어온 카메라 파라미터 `V`는 위에서 초기화한 `M`, `S`, `C`, `A`와 함께 `Rasterize` 함수의 입력으로 사용되어 이미지 `I`를 생성합니다.
 
-먼저, `SampleTrainingView` 함수를 통해 카메라 파라미터 `V`와 Ground Truth 이미지 $\hat{I}$ 를 읽어옵니다. 읽어온 카메라 파라미터 `V`는 위에서 초기화한 `M`, `S`, `C`, `A`와 함께 `Rasterize` 함수의 입력으로 사용되어 이미지 `I`를 생성합니다.
+### Rasterize
 
 <p align=center>
     <img src="./image/rasterize2.png" width=60% height=60%>
@@ -104,7 +111,7 @@ $$ P_{l}^{\vert m \vert} \cos\theta = (-1)^{m} \frac {(l+ \vert m \vert)!}{(l- \
 
 해당 논문에서 제공한 알고리즘의 순서를 따라가며 이미지 생성 과정을 설명해보겠습니다.
 
-### Cull Gaussian
+#### Cull Gaussian
 전체 3D Gaussian `p` 중에 입력 카메라 파라미터 `V`에서 관측할 수 없는 3D Guassian을 걸러내는 filter 역할을 하는 함수입니다. 
 
 <p align=center>
@@ -113,7 +120,7 @@ $$ P_{l}^{\vert m \vert} \cos\theta = (-1)^{m} \frac {(l+ \vert m \vert)!}{(l- \
 
 주어진 3차원 카메라 정보로 볼 수 있는 평면의 영역인 절두체(Viewing Frustum) 밖에 있는 오브젝트는 렌더링 과정에서 제거(Culling)하게 됩니다. 논문에서는 교챠 영역에서 99% Confidence를 갖는 3D Gaussian만 유지한다고 합니다. 추가적으로, 2D Covariance 연산이 불안정하기 때문에 near plane에 너무 가깝거나 Frustum 밖과 같이 extream한 영역의 Gaussian을 걸러내기 위한 `gurad band`를 사용한다고 합니다.(Frustum Culling에 관한 자세한 내용은 [링크](https://m.blog.naver.com/canny708/221547085908)를 참고하였습니다.)
 
-### Screen space Gaussians
+#### Screen space Gaussians
 이 함수는 3D Gaussian을 2D Gaussia으로 변환하여 Image plane에 projection시키는 함수입니다. Scaling Matrix와 Rotation Matrix를 이용하여 3D Covariance를 계산합니다.
 
 $$ \sum = RSS^{T}R^{T} $$
@@ -124,19 +131,39 @@ $$ {\sum}' = JW \sum W^{T}J^{T}$$
 
 관련 수식은 위에서 설명을 해서 짧게 넘어가겠습니다.
 
-### Create Tiles
+#### Create Tiles
 `w, h` 크기의 이미지를 16x16 tile로 쪼개는 함수입니다. 논문에서 제안하는 tile based rasterization을 수행하기 위한 단계로 이해했습니다.
 
-### Duplicate with Keys
+#### Duplicate with Keys
 각 2D Gaussian을 겹쳐는 tile 수에 따라 인스턴스화 시킵니다. 각 인스턴스에 view space depth와 tile ID를 결합한 Key를 할당하여 Dictionary 형태로 저장됩니다. Key 정보는 64 bit 크기로 구성되며, 32비트씩 `[ tile ID | depth ]`의 형태로 저장됩니다. 이 과정에서 갹 Gaussian 마다 N개의 인스턴스들이 생기지만, CUDA를 이용한 병렬처리와 다음 단계에서 진행할 정렬 흐름이 더 간단해져서 빠르게 처리가 가능하다고 합니다.
 
-### Sort by Keys
+#### Sort by Keys
 각 인스턴스에 할당한 Key를 이용하여 Radix Sort를 진행합니다. Radix Sort(기수 정렬)은 낮은 자리수부터 비교하여 정렬하는 알고리즘을 말합니다. 해당 과정에서는 GPU를 이용해 병렬적으로 모든 splat들을 depth에 따라 정렬합니다. 이 과정에서 픽셀마다 point들의 순서는 정해져 있지 않고, blending 과정에서도 초기 정렬을 기반으로 수행된다고 합니다. 저자는 본인들의 $\alpha$-blending 과정에서 일부 구성이 approximate 할 수 있지만, splat이 픽셀 크기에 해당하기 때문에 무시해도 될 정도라고 합니다. 결과적으로 이 방법이 artifacts 줄이고 학습과 렌더링 퍼포먼스에 큰 영향을 끼쳤다고 합니다.
 
-### Identify Tile Range
+#### Identify Tile Range
 같은 tile ID에서 시작과 끝 Gaussian을 식별하여 리스트를 생성하여 효율적으로 관리하기 위한 함수입니다.
 
-### Get Tile Range
+#### Get Tile Range
 모든 tile에 대한 range `r`을 읽어옵니다.
 
-### Blend in Order
+#### Blend in Order
+각 tile 마다 하나의 CUDA thread block으로 실행되며, 주어진 픽셀에 대하여 앞에서 뒤로 순회하며 색상과 투명도($\alpha$)값을 축적하여 값을 결정합니다. 이때, 데이터 loading, sharing, processing 등을 병렬로 처리하여 이득(속도 측면에서의 이득이라고 생각합니다.)을 최대화한다고 합니다. 픽셀이 목표 채도 $\alpha$에 도달하면, 연관된 thread의 동작을 중지시키고 모든 픽셀이 만족한다면 전체 tile에 대한 처리를 중지합니다.
+
+해당 논문에서는 Gaussian을 사용한 `빠르고 미분가능한 Rasterizer` 구현을 목표로 했습니다. [previous work](https://arxiv.org/abs/2004.07484)의 문제점인 gradient를 update 할 수 있는 splat의 수가 정해져 있는 문제를 해결하기 위해서 전체 이미지에 대하여 primitive를 pre-sort하는 방법을 사용했다고 합니다. 이렇게 하면, 적은 양의 메모리만으로도 임의 수의 Gaussian에 대하여 효율적으로 역전파를 수행할 수 있고 픽셀마다 constant overhead가 소요된다고 합니다. 이렇게 해서 미분가능하고 2D로 projection이 가능하기 때문에 anisotropic splat이 가능하게 됩니다.
+
+anisotropic은 비등방성이라는 뜻으로, "속성이 방향에 따라 변하는" 이라는 뜻으로 볼 수 있습니다. 논문에서는 정확한 scene 표현을 위해 방향에 따라 물체의 색상이 바뀌기 SH 함수가 이와 관련이 있다고 볼 수 있습니다.
+
+Backward pass 단계에서는 forward pass 에서 수행했던 픽셀당 blended point의 전체 sequence를 복구해야한다고 합니다. 이를 해결하기 위해서는 [기존 방법](https://arxiv.org/abs/2109.02369)에서 사용한 global memory에 point를 저장하는 방법도 있지만, dynamic memory management overhead가 발생할 수 있다고 합니다. 이를 피하기 위해 forward pass의 tile range와 sorted array of Gaussia을 재사용하여 list를 뒤에서 앞으로 탐색하는 방법을 사용한다고 합니다.
+
+### Loss
+생성된 이미지와 GT 이미지를 비교하여 차이를 계산합니다. Loss 함수에는 L1과 D-SSIM을 사용하여 설계했습니다. D-SSIM은 SSIM을 기반으로 한 함수로, 밝기/대비/구조 등을 기반으로 유사도를 계산하는 함수입니다.
+
+### Adam optimizer
+Loss 계산 후에는 Adam optimizer를 사용하여 `M`, `S`, `C`, `A`를 업데이트 합니다. Opimization Detail은 [논문](https://repo-sam.inria.fr/fungraph/3d-gaussian-splatting/3d_gaussian_splatting_low.pdf)의 7.1절을 확인해보시면 나와있습니다.
+
+## 4. Adaptive Control Gaussian
+마지막으로 Gaussian을 주어진 scene에 맞게 adaptive control하는 block 입니다.
+
+<p align=center>
+    <img src="./image/adaptive_control_gaussian.png" width=60% height=60%>
+</p>
