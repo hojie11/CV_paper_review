@@ -167,3 +167,37 @@ Loss 계산 후에는 Adam optimizer를 사용하여 `M`, `S`, `C`, `A`를 업�
 <p align=center>
     <img src="./image/adaptive_control_gaussian.png" width=60% height=60%>
 </p>
+
+이 과정은 학습 과정에서 매 번 수행되는 게 아니라 100번마다 수행되도록 설계했다고 합니다. 이 과정에서 transparent한 Gaussian($\alpha$가 threshold보다 낮은)을 제거하게 됩니다. 이후, empty area를 채우도록 adaptive control을 수행하게 되는데, geomotric feature가 없는 경우(under-reconstruction)과 Gaussian이 커버한 영역이 광범위한 경우(over-reconstruction)을 고려하며 진행됩니다.
+
+논문에서는 이 과정을 Densification이라고 정의했습니다. threshold $\tau_{pos}$가 0.0002를 넘어선 view-space position gradients의 average magnitude를 갖는 Gaussian에 대해 adaptive control을 수행합니다.
+
+#### Under-reconstruction
+작은 Gaussian, 해당 포인트에서 Gaussian의 크기를 나타내는 Covariance가 작은 Gaussian들은 같은 크기로 복사(Clone)해서 부족한 geometry를 cover한다고 합니다. 이때, 복사한 Gaussian의 위치는 positional gradient 방향이 됩니다.
+
+#### Over-reconstruction
+너무 크기가 큰 Gaussian에 대해서는 작은 크기의 Gaussian으로 쪼개서(Split) 사용합니다. 쪼개진 Gaussian의 크기는 실험을 통해 결정된 scale factor $\phi$(=1.6)로 조절된다고 합니다. 쪼개진 Gaussian은 원래 Gaussian의 확률밀도함수(Possiblity density function)에 따라 위치하게 됩니다.
+
+## Result and Evaluation
+
+<p align=center>
+    <img src="./image/result.png">
+</p>
+
+정량적 평가에 대한 결과는 위의 사진과 같이 거의 모든 경우에 3D Gaussian이 우수한 것을 알 수 있습니다. 특히 학습속도가 빠른 InstantNGP 보다도 빠른 것을 볼 수 있습니다. 다른 방법들 보다 Rendering 속도가 굉장히 빠른 것이 큰 장점인 것 같습니다. 반대로, 다른 방법들에 비해 메모리 사용량이 굉장히 큰 것을 볼 수 있습니다.
+
+<p align=center>
+    <img src="./image/result2.png" width=60% height=60%>
+</p>
+
+학습 결과에 대한 사진을 논문에서 제공했지만, 개인적인 생각으론 [Project page](https://repo-sam.inria.fr/fungraph/3d-gaussian-splatting/)에서 보시는 것이 직관적으로 더 와닿는 것 같습니다.
+
+## Limitation
+저자들은 scene이 잘 관찰되지 않은 경우(=sparse한 scene)에 대해 artifact가 생긴다고 합니다. 이러한 증상은 다른 방법들에서도 나타난다고 합니다. Anisotropic Gaussian이 큰 이점을 주긴 했지만, 논문에서 표현하길 길쭉하거나 얼룩진 Gaussian을 생성할 수 있다고 합니다.
+
+Optimization 과정에서도 큰 Gaussian을 만들 때 artifact가 발생하고, 특히 view-dependent appearance에서 나타나는 경향이 있다고 합니다. 이러한 현상은 rasterize 단계에서 gaurd band에 의해 Gaussian이 제거하는 과정이 원인이 될 수 있다고 합니다. 또한, Visiblity algorithm에서 갑자기 depth/blending order를 뒤바꾸는게 원인이 될 수 있다고 합니다.
+
+## Comment
+이번에는 3D Gaussian Splatting에 대한 논문을 리뷰해보았습니다. 처음 들어보는 개념이 많이 있었고 선행되는 지식이 많이 필요했던 논문이라 몇 번을 읽으며 이해해보려 노력했습니다. 결과적으로 Rendering 속도가 굉장히 빠른 것이 신기하고 이미지 퀄리티고 나쁘지 않아서 신기했는데, 다른 방법들에 비해 메모리가 많이 사용된다는 점과 이 외에도 문제점이 많다는 점이 아쉬운 논문이였습니다.
+하지만, 최근 지속적으로 Gaussian splatting, Surfel 등과 같이 새로운 표현 방법을 도입해서 scene을 rendering 하는 방법들이 발표되고, 결과도 계속해서 좋아지고 있습니다.(너무 빨라서 따라가기 힘들어요..ㅜ)
+하나의 방법에서 발생하는 문제점들을 극복하는 방향으로 계속 논문이 발표되고 있어서 차근차근 하나씩 리뷰해보도록 하겠습니다.(리뷰 속도도 올려보겠습니다..!)
